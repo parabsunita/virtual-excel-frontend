@@ -10,6 +10,7 @@ import {
   Search,
   Users,
   Home,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import JSZip from "jszip";
@@ -25,6 +26,8 @@ const Sidebar = ({ onSelect, orgData, token }) => {
   const [editingFileId, setEditingFileId] = useState(null);
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showAddFolderModal, setShowAddFolderModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
 
   const API_URL = process.env.REACT_APP_API_URL;
 
@@ -46,10 +49,9 @@ const Sidebar = ({ onSelect, orgData, token }) => {
     fetchFolders();
   }, [API_URL, orgData?.org_id, token]);
 
-  // 🟢 Create folder and refetch
-  const addFolder = async () => {
-    const folderName = prompt("Enter folder name:");
-    if (!folderName) return;
+  // 🟢 Add folder using modal input
+  const createFolder = async () => {
+    if (!newFolderName.trim()) return alert("Folder name cannot be empty");
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/folders/${orgData.org_id}`, {
@@ -58,12 +60,13 @@ const Sidebar = ({ onSelect, orgData, token }) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ folder_name: folderName }),
+        body: JSON.stringify({ folder_name: newFolderName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create folder");
-      await fetchFolders(); // 🔁 Refresh folder list
-      alert("✅ Folder created successfully!");
+      await fetchFolders();
+      setShowAddFolderModal(false);
+      setNewFolderName("");
     } catch (err) {
       alert(`❌ ${err.message}`);
     } finally {
@@ -86,7 +89,7 @@ const Sidebar = ({ onSelect, orgData, token }) => {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      await fetchFolders(); // 🔁 Refetch after delete
+      await fetchFolders();
     } catch (err) {
       console.error("Error deleting folder:", err);
     }
@@ -227,6 +230,7 @@ const Sidebar = ({ onSelect, orgData, token }) => {
             layout
             className="mt-2 px-2 overflow-y-auto max-h-[calc(100vh-200px)]"
           >
+            {/* Search */}
             <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-800 mb-2">
               <Search size={16} className="text-gray-400" />
               <input
@@ -238,6 +242,7 @@ const Sidebar = ({ onSelect, orgData, token }) => {
               />
             </div>
 
+            {/* Folder List */}
             <AnimatePresence>
               {displayedFolders.map((folder) => (
                 <motion.div
@@ -357,42 +362,67 @@ const Sidebar = ({ onSelect, orgData, token }) => {
             <motion.button
               className="flex items-center gap-2 p-2 mt-2 w-full justify-center bg-green-600 hover:bg-green-500 rounded"
               whileHover={{ scale: 1.05 }}
-              onClick={addFolder}
+              onClick={() => setShowAddFolderModal(true)}
               disabled={loading}
             >
-              <Plus size={16} />{" "}
-              {loading ? "Creating Folder..." : "Add Folder"}
+              <Plus size={16} /> Add Folder
             </motion.button>
           </motion.div>
         )}
       </motion.div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-6 bg-gray-100 overflow-auto">
-        {activeSection === "dashboard" && (
-          <h1 className="text-3xl font-bold animate-pulse">
-            Dashboard Content
-          </h1>
+      {/* Modal for Add Folder */}
+      <AnimatePresence>
+        {showAddFolderModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="bg-white rounded-xl p-6 w-80 shadow-xl"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Create New Folder
+                </h3>
+                <button
+                  onClick={() => setShowAddFolderModal(false)}
+                  className="text-gray-500 hover:text-red-500"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <input
+                type="text"
+                placeholder="Enter folder name"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                className="border border-gray-300 rounded w-full px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowAddFolderModal(false)}
+                  className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createFolder}
+                  disabled={loading}
+                  className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500"
+                >
+                  {loading ? "Creating..." : "Create"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-        {activeSection === "users" && (
-          <h1 className="text-3xl font-bold animate-pulse">
-            User Management Content
-          </h1>
-        )}
-        {activeSection === "workspace" && activeItem && (
-          <div>
-            <h2 className="text-xl font-semibold mt-4">{activeItem.name}</h2>
-            <pre className="mt-2 p-4 bg-white rounded shadow-lg">
-              {JSON.stringify(activeItem.data, null, 2)}
-            </pre>
-          </div>
-        )}
-        {activeSection === "workspace" && !activeItem && (
-          <p className="text-gray-500 mt-4">
-            Select a file to view its content
-          </p>
-        )}
-      </div>
+      </AnimatePresence>
     </div>
   );
 };
