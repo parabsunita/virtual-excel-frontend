@@ -23,7 +23,7 @@ function App() {
       setOrgData(JSON.parse(storedOrg));
       setIsLoggedIn(true);
     }
-  }, []);
+  }, [isLoggedIn]);
 
   // ✅ Logout handler
   const handleLogout = () => {
@@ -42,7 +42,7 @@ function App() {
           path="/"
           element={
             isLoggedIn ? (
-              <Dashboard orgData={orgData} token={token} onLogout={handleLogout} />
+              <Dashboard orgData={orgData} token={token} setToken={setToken} onLogout={handleLogout} setIsLoggedIn={setIsLoggedIn} setOrgData={setOrgData} />
             ) : (
               <div className="flex flex-col items-center justify-center min-h-screen bg-gray-800">
                 <Login

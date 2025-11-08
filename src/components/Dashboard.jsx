@@ -12,8 +12,27 @@ const Dashboard = ({
   setActiveFile,
   handleUpload,
   handleError,
+  setIsLoggedIn,
+  setOrgData,
+  setToken,
 }) => {
-  // Simple debug: if no orgData passed (user not logged in)
+  // Logout handler
+  const handleLogout = () => {
+    // Clear session data
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("orgData");
+
+    // Reset states
+    setIsLoggedIn(false);
+    setOrgData(null);
+    setToken(null);
+
+    toast.info("You have been logged out!");
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 800);
+  };
+
   if (!orgData || !token) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
@@ -37,7 +56,7 @@ const Dashboard = ({
 
   return (
     <div className="flex h-screen bg-gradient-to-r from-gray-100 to-gray-300">
-      {/* Sidebar now knows org_id + token for folder operations */}
+      {/* Sidebar */}
       <Sidebar
         onSelect={setActiveFile}
         files={files}
@@ -53,18 +72,26 @@ const Dashboard = ({
             {activeFile ? activeFile.name : "📑 Excel Viewer"}
           </h2>
 
-          {/* Organization Info */}
-          <div className="flex items-center space-x-4">
+          {/* Right section: Org info + Logout */}
+          <div className="flex items-center space-x-6">
             <div className="text-right">
               <p className="text-gray-700 font-semibold">
                 {orgData?.org_name || "Organization"}
               </p>
               <p className="text-sm text-gray-500">{orgData?.email}</p>
             </div>
+
+            {/* ✅ Logout Button */}
+            <button
+              onClick={handleLogout}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg shadow transition duration-200"
+            >
+              Logout
+            </button>
           </div>
         </div>
 
-        {/* Main content area */}
+        {/* Main content */}
         <div className="flex-1 p-6 bg-gray-50 overflow-auto rounded-lg shadow-inner">
           {activeFile ? (
             <ExcelViewer

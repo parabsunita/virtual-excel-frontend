@@ -16,7 +16,7 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 
-const Sidebar = ({ onSelect, orgId, token }) => {
+const Sidebar = ({ onSelect, orgData, token }) => {
   const [activeSection, setActiveSection] = useState("dashboard");
   const [folders, setFolders] = useState([]);
   const [activeItem, setActiveItem] = useState(null);
@@ -28,33 +28,31 @@ const Sidebar = ({ onSelect, orgId, token }) => {
 
   const API_URL = process.env.REACT_APP_API_URL;
 
-  // 🟢 Fetch folders from backend
-  useEffect(() => {
-    const fetchFolders = async () => {
-      if (!token || !orgId) return;
-      try {
-        const res = await fetch(`${API_URL}/folders/${orgId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data.success && data.folders) {
-          setFolders(data.folders);
-        }
-      } catch (err) {
-        console.error("Error fetching folders:", err);
-      }
-    };
-    fetchFolders();
-  }, [API_URL, orgId, token]);
+  // 🟢 Fetch all folders
+  const fetchFolders = async () => {
+    if (!token || !orgData?.org_id) return;
+    try {
+      const res = await fetch(`${API_URL}/folders/${orgData.org_id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.folders) setFolders(data.folders);
+    } catch (err) {
+      console.error("Error fetching folders:", err);
+    }
+  };
 
-  // 🟢 Create new folder via backend API
+  useEffect(() => {
+    fetchFolders();
+  }, [API_URL, orgData?.org_id, token]);
+
+  // 🟢 Create folder and refetch
   const addFolder = async () => {
     const folderName = prompt("Enter folder name:");
     if (!folderName) return;
-
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/folders/${orgId}`, {
+      const res = await fetch(`${API_URL}/folders/${orgData.org_id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -62,17 +60,9 @@ const Sidebar = ({ onSelect, orgId, token }) => {
         },
         body: JSON.stringify({ folder_name: folderName }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create folder");
-
-      // ✅ Add new folder to UI
-      const newFolder = {
-        id: data.folder_id,
-        name: folderName,
-        files: [],
-      };
-      setFolders((prev) => [...prev, newFolder]);
+      await fetchFolders(); // 🔁 Refresh folder list
       alert("✅ Folder created successfully!");
     } catch (err) {
       alert(`❌ ${err.message}`);
@@ -81,23 +71,27 @@ const Sidebar = ({ onSelect, orgId, token }) => {
     }
   };
 
-  // 🔵 Rename Folder (local only for now)
   const renameFolder = (id, newName) => {
     if (!newName.trim()) return;
     setFolders((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, name: newName } : f))
+      prev.map((f) => (f.folder_id === id ? { ...f, folder_name: newName } : f))
     );
     setEditingFolderId(null);
   };
 
-  // 🔴 Delete Folder (local only)
-  const deleteFolder = (id) => {
-    if (!window.confirm("Delete folder and all files?")) return;
-    setFolders((prev) => prev.filter((f) => f.id !== id));
-    if (activeItem?.folderId === id) setActiveItem(null);
+  const deleteFolder = async (id) => {
+    if (!window.confirm("Delete this folder?")) return;
+    try {
+      await fetch(`${API_URL}/folders/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchFolders(); // 🔁 Refetch after delete
+    } catch (err) {
+      console.error("Error deleting folder:", err);
+    }
   };
 
-  // 🟣 Add File (local placeholder)
   const addFile = (folderId) => {
     const newFile = {
       id: Date.now(),
@@ -108,7 +102,9 @@ const Sidebar = ({ onSelect, orgId, token }) => {
     };
     setFolders((prev) =>
       prev.map((f) =>
-        f.id === folderId ? { ...f, files: [...f.files, newFile] } : f
+        f.folder_id === folderId
+          ? { ...f, files: [...(f.files || []), newFile] }
+          : f
       )
     );
     setEditingFileId(newFile.id);
@@ -118,7 +114,7 @@ const Sidebar = ({ onSelect, orgId, token }) => {
     if (!newName.trim()) return;
     setFolders((prev) =>
       prev.map((f) =>
-        f.id === folderId
+        f.folder_id === folderId
           ? {
               ...f,
               files: f.files.map((file) =>
@@ -135,7 +131,7 @@ const Sidebar = ({ onSelect, orgId, token }) => {
     if (!window.confirm("Delete this file?")) return;
     setFolders((prev) =>
       prev.map((f) =>
-        f.id === folderId
+        f.folder_id === folderId
           ? { ...f, files: f.files.filter((file) => file.id !== fileId) }
           : f
       )
@@ -149,7 +145,7 @@ const Sidebar = ({ onSelect, orgId, token }) => {
   };
 
   const downloadFolder = async (folder) => {
-    if (!folder.files.length) return alert("Folder is empty!");
+    if (!folder.files?.length) return alert("Folder is empty!");
     const zip = new JSZip();
     for (const file of folder.files) {
       const ws = XLSX.utils.aoa_to_sheet(file.data.length ? file.data : [[]]);
@@ -159,7 +155,7 @@ const Sidebar = ({ onSelect, orgId, token }) => {
       zip.file(`${file.name || "New File"}.xlsx`, wbout);
     }
     const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, `${folder.name || "New Folder"}.zip`);
+    saveAs(content, `${folder.folder_name || "New Folder"}.zip`);
   };
 
   const filterFolders = (folders) => {
@@ -168,12 +164,14 @@ const Sidebar = ({ onSelect, orgId, token }) => {
     return folders
       .map((f) => ({
         ...f,
-        files: f.files.filter((file) =>
+        files: f.files?.filter((file) =>
           file.name.toLowerCase().includes(lower)
         ),
       }))
       .filter(
-        (f) => f.name.toLowerCase().includes(lower) || f.files.length > 0
+        (f) =>
+          f.folder_name.toLowerCase().includes(lower) ||
+          (f.files && f.files.length > 0)
       );
   };
 
@@ -243,7 +241,7 @@ const Sidebar = ({ onSelect, orgId, token }) => {
             <AnimatePresence>
               {displayedFolders.map((folder) => (
                 <motion.div
-                  key={folder.id}
+                  key={folder.folder_id}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
@@ -252,25 +250,27 @@ const Sidebar = ({ onSelect, orgId, token }) => {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Folder size={18} />
-                      {editingFolderId === folder.id ? (
+                      {editingFolderId === folder.folder_id ? (
                         <input
                           type="text"
                           autoFocus
-                          defaultValue={folder.name}
+                          defaultValue={folder.folder_name}
                           onBlur={(e) =>
-                            renameFolder(folder.id, e.target.value)
+                            renameFolder(folder.folder_id, e.target.value)
                           }
                           onKeyDown={(e) =>
                             e.key === "Enter" &&
-                            renameFolder(folder.id, e.target.value)
+                            renameFolder(folder.folder_id, e.target.value)
                           }
                           className="px-2 py-1 border rounded w-32 bg-gray-700 text-white"
                         />
                       ) : (
                         <span
-                          onDoubleClick={() => setEditingFolderId(folder.id)}
+                          onDoubleClick={() =>
+                            setEditingFolderId(folder.folder_id)
+                          }
                         >
-                          {folder.name || "New Folder"} ({folder.files.length})
+                          {folder.folder_name} ({folder.files?.length || 0})
                         </span>
                       )}
                     </div>
@@ -278,7 +278,7 @@ const Sidebar = ({ onSelect, orgId, token }) => {
                       <motion.button
                         whileHover={{ scale: 1.2 }}
                         className="text-green-400"
-                        onClick={() => addFile(folder.id)}
+                        onClick={() => addFile(folder.folder_id)}
                       >
                         <Plus size={16} />
                       </motion.button>
@@ -292,7 +292,7 @@ const Sidebar = ({ onSelect, orgId, token }) => {
                       <motion.button
                         whileHover={{ scale: 1.2 }}
                         className="text-red-400"
-                        onClick={() => deleteFolder(folder.id)}
+                        onClick={() => deleteFolder(folder.folder_id)}
                       >
                         <Trash size={16} />
                       </motion.button>
@@ -301,7 +301,7 @@ const Sidebar = ({ onSelect, orgId, token }) => {
 
                   {/* Files */}
                   <div className="ml-6 mt-2 space-y-1">
-                    {folder.files.map((file) => (
+                    {folder.files?.map((file) => (
                       <motion.div
                         key={file.id}
                         initial={{ opacity: 0, x: -10 }}
@@ -323,11 +323,11 @@ const Sidebar = ({ onSelect, orgId, token }) => {
                             autoFocus
                             defaultValue={file.name}
                             onBlur={(e) =>
-                              renameFile(folder.id, file.id, e.target.value)
+                              renameFile(folder.folder_id, file.id, e.target.value)
                             }
                             onKeyDown={(e) =>
                               e.key === "Enter" &&
-                              renameFile(folder.id, file.id, e.target.value)
+                              renameFile(folder.folder_id, file.id, e.target.value)
                             }
                             className="px-2 py-1 border rounded w-32 bg-gray-700 text-white"
                           />
@@ -342,7 +342,7 @@ const Sidebar = ({ onSelect, orgId, token }) => {
                         <motion.button
                           whileHover={{ scale: 1.2 }}
                           className="ml-auto text-red-400"
-                          onClick={() => deleteFile(folder.id, file.id)}
+                          onClick={() => deleteFile(folder.folder_id, file.id)}
                         >
                           <Trash size={14} />
                         </motion.button>
