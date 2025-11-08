@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Folder,
   FileSpreadsheet,
@@ -16,7 +16,7 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 
-const Sidebar = ({ onSelect }) => {
+const Sidebar = ({ onSelect, orgId, token }) => {
   const [activeSection, setActiveSection] = useState("dashboard");
   const [folders, setFolders] = useState([]);
   const [activeItem, setActiveItem] = useState(null);
@@ -24,70 +24,121 @@ const Sidebar = ({ onSelect }) => {
   const [editingFolderId, setEditingFolderId] = useState(null);
   const [editingFileId, setEditingFileId] = useState(null);
   const [searchText, setSearchText] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const selectSection = (section) => setActiveSection(section);
+  const API_URL = process.env.REACT_APP_API_URL;
 
-  // Folder actions
-  const addFolder = () => {
-    const newFolder = { id: Date.now(), name: "", files: [] };
-    setFolders([...folders, newFolder]);
-    setEditingFolderId(newFolder.id);
+  // 🟢 Fetch folders from backend
+  useEffect(() => {
+    const fetchFolders = async () => {
+      if (!token || !orgId) return;
+      try {
+        const res = await fetch(`${API_URL}/folders/${orgId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success && data.folders) {
+          setFolders(data.folders);
+        }
+      } catch (err) {
+        console.error("Error fetching folders:", err);
+      }
+    };
+    fetchFolders();
+  }, [API_URL, orgId, token]);
+
+  // 🟢 Create new folder via backend API
+  const addFolder = async () => {
+    const folderName = prompt("Enter folder name:");
+    if (!folderName) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/folders/${orgId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ folder_name: folderName }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create folder");
+
+      // ✅ Add new folder to UI
+      const newFolder = {
+        id: data.folder_id,
+        name: folderName,
+        files: [],
+      };
+      setFolders((prev) => [...prev, newFolder]);
+      alert("✅ Folder created successfully!");
+    } catch (err) {
+      alert(`❌ ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // 🔵 Rename Folder (local only for now)
   const renameFolder = (id, newName) => {
     if (!newName.trim()) return;
-    setFolders(folders.map((f) => (f.id === id ? { ...f, name: newName } : f)));
+    setFolders((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, name: newName } : f))
+    );
     setEditingFolderId(null);
   };
 
+  // 🔴 Delete Folder (local only)
   const deleteFolder = (id) => {
     if (!window.confirm("Delete folder and all files?")) return;
-    setFolders(folders.filter((f) => f.id !== id));
+    setFolders((prev) => prev.filter((f) => f.id !== id));
     if (activeItem?.folderId === id) setActiveItem(null);
   };
 
-  // File actions
+  // 🟣 Add File (local placeholder)
   const addFile = (folderId) => {
     const newFile = {
       id: Date.now(),
-      name: "",
+      name: "New File",
       folderId,
       columns: [],
       data: [],
     };
-    setFolders(
-      folders.map((f) =>
-        f.id === folderId ? { ...f, files: [...f.files, newFile] } : f,
-      ),
+    setFolders((prev) =>
+      prev.map((f) =>
+        f.id === folderId ? { ...f, files: [...f.files, newFile] } : f
+      )
     );
     setEditingFileId(newFile.id);
   };
 
   const renameFile = (folderId, fileId, newName) => {
     if (!newName.trim()) return;
-    setFolders(
-      folders.map((f) =>
+    setFolders((prev) =>
+      prev.map((f) =>
         f.id === folderId
           ? {
               ...f,
               files: f.files.map((file) =>
-                file.id === fileId ? { ...file, name: newName } : file,
+                file.id === fileId ? { ...file, name: newName } : file
               ),
             }
-          : f,
-      ),
+          : f
+      )
     );
     setEditingFileId(null);
   };
 
   const deleteFile = (folderId, fileId) => {
     if (!window.confirm("Delete this file?")) return;
-    setFolders(
-      folders.map((f) =>
+    setFolders((prev) =>
+      prev.map((f) =>
         f.id === folderId
           ? { ...f, files: f.files.filter((file) => file.id !== fileId) }
-          : f,
-      ),
+          : f
+      )
     );
     if (activeItem?.id === fileId) setActiveItem(null);
   };
@@ -97,7 +148,6 @@ const Sidebar = ({ onSelect }) => {
     if (onSelect) onSelect(file);
   };
 
-  // Download Folder
   const downloadFolder = async (folder) => {
     if (!folder.files.length) return alert("Folder is empty!");
     const zip = new JSZip();
@@ -119,11 +169,11 @@ const Sidebar = ({ onSelect }) => {
       .map((f) => ({
         ...f,
         files: f.files.filter((file) =>
-          file.name.toLowerCase().includes(lower),
+          file.name.toLowerCase().includes(lower)
         ),
       }))
       .filter(
-        (f) => f.name.toLowerCase().includes(lower) || f.files.length > 0,
+        (f) => f.name.toLowerCase().includes(lower) || f.files.length > 0
       );
   };
 
@@ -148,11 +198,7 @@ const Sidebar = ({ onSelect }) => {
             className="p-1 hover:bg-gray-700 rounded"
             onClick={() => setIsCollapsed(!isCollapsed)}
           >
-            {isCollapsed ? (
-              <ChevronRight size={20} />
-            ) : (
-              <ChevronLeft size={20} />
-            )}
+            {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
           </motion.button>
         </div>
 
@@ -160,21 +206,13 @@ const Sidebar = ({ onSelect }) => {
         <div className="flex flex-col mt-2">
           {[
             { id: "dashboard", label: "Dashboard", icon: <Home size={18} /> },
-            {
-              id: "workspace",
-              label: "My Workspace",
-              icon: <Folder size={18} />,
-            },
-            {
-              id: "users",
-              label: "User Management",
-              icon: <Users size={18} />,
-            },
+            { id: "workspace", label: "My Workspace", icon: <Folder size={18} /> },
+            { id: "users", label: "User Management", icon: <Users size={18} /> },
           ].map((nav) => (
             <motion.button
               key={nav.id}
               layout
-              onClick={() => selectSection(nav.id)}
+              onClick={() => setActiveSection(nav.id)}
               className={`flex items-center gap-2 p-3 rounded-lg mx-2 my-1 hover:bg-gray-800 transition-colors ${
                 activeSection === nav.id ? "bg-gray-700" : ""
               }`}
@@ -185,7 +223,7 @@ const Sidebar = ({ onSelect }) => {
           ))}
         </div>
 
-        {/* Workspace Content */}
+        {/* Workspace */}
         {activeSection === "workspace" && !isCollapsed && (
           <motion.div
             layout
@@ -261,6 +299,7 @@ const Sidebar = ({ onSelect }) => {
                     </div>
                   </div>
 
+                  {/* Files */}
                   <div className="ml-6 mt-2 space-y-1">
                     {folder.files.map((file) => (
                       <motion.div
@@ -268,7 +307,11 @@ const Sidebar = ({ onSelect }) => {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -10 }}
-                        className={`flex items-center gap-2 p-1 rounded cursor-pointer ${activeItem?.id === file.id ? "bg-blue-600" : "hover:bg-gray-700"} transition`}
+                        className={`flex items-center gap-2 p-1 rounded cursor-pointer ${
+                          activeItem?.id === file.id
+                            ? "bg-blue-600"
+                            : "hover:bg-gray-700"
+                        } transition`}
                       >
                         <FileSpreadsheet
                           size={16}
@@ -310,18 +353,21 @@ const Sidebar = ({ onSelect }) => {
               ))}
             </AnimatePresence>
 
+            {/* Add Folder Button */}
             <motion.button
               className="flex items-center gap-2 p-2 mt-2 w-full justify-center bg-green-600 hover:bg-green-500 rounded"
               whileHover={{ scale: 1.05 }}
               onClick={addFolder}
+              disabled={loading}
             >
-              <Plus size={16} /> Add Folder
+              <Plus size={16} />{" "}
+              {loading ? "Creating Folder..." : "Add Folder"}
             </motion.button>
           </motion.div>
         )}
       </motion.div>
 
-      {/* Main content */}
+      {/* Main Content */}
       <div className="flex-1 p-6 bg-gray-100 overflow-auto">
         {activeSection === "dashboard" && (
           <h1 className="text-3xl font-bold animate-pulse">
