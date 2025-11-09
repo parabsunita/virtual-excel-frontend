@@ -110,6 +110,8 @@ const Sidebar = ({ onSelect, orgData, token }) => {
         {activeSection === "workspace" && !isCollapsed && (
           <FolderList
             folders={folders}
+            orgData={orgData}
+            token={token}
             expandedFolders={expandedFolders}
             toggleFolder={toggleFolder}
             onSelect={onSelect}

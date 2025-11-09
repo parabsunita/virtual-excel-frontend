@@ -6,6 +6,7 @@ import FolderItem from "./FolderItem";
 
 const FolderList = ({
   folders,
+  orgData, token,
   expandedFolders,
   toggleFolder,
   setShowAddFolderModal,
@@ -61,6 +62,8 @@ const FolderList = ({
           <FolderItem
             key={folder.folder_id || `folder-${idx}`}
             folder={folder}
+            orgData={orgData}
+            token={token}
             expandedFolders={expandedFolders}
             toggleFolder={toggleFolder}
             onSelect={onSelect}
