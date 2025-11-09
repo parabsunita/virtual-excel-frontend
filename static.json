@@ -1,4 +1,5 @@
 {
+  "root": "build",
   "routes": [
     { "handle": "filesystem" },
     { "match": "/*", "src": "/index.html" }
