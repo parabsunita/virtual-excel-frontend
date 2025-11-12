@@ -67,7 +67,6 @@ const FolderItem = ({
   const handleToggleExcel = async (excelId) => {
     if (expandedExcels.includes(excelId)) {
       setExpandedExcels(expandedExcels.filter((id) => id !== excelId));
-      onSelect(null); // deselect excel on collapse
     } else {
       setExpandedExcels([...expandedExcels, excelId]);
       try {
