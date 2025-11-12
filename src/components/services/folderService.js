@@ -192,3 +192,15 @@ export const getSheetByExcelIdAPI = async (excelId, token) => {
   const data = await res.json();
   return data;
 };
+
+
+
+export const listColumnsAPI = async (sheet_id, token) => {
+  const res = await fetch(
+    `${API_BASE_URL}/api/columns/${sheet_id}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return res.json();
+};

@@ -67,11 +67,14 @@ const FolderItem = ({
   const handleToggleExcel = async (excelId) => {
     if (expandedExcels.includes(excelId)) {
       setExpandedExcels(expandedExcels.filter((id) => id !== excelId));
+      onSelect(null); // deselect excel on collapse
     } else {
       setExpandedExcels([...expandedExcels, excelId]);
       try {
         const sheets = await listSheetsByExcelAPI(excelId, token);
+        onSelect(excelId); // select excel on expand
         setExcelSheets((prev) => ({ ...prev, [excelId]: sheets }));
+        
       } catch (err) {
         alert("Error fetching sheets: " + err.message);
       }

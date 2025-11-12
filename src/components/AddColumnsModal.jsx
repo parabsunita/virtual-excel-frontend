@@ -3,7 +3,7 @@ import { getSheetByExcelIdAPI, createColumnsAPI, updateColumnsAPI } from "./serv
 
 const DATA_TYPES = ["NVARCHAR(255)", "DECIMAL(10,2)", "INT", "DATE"];
 
-const AddColumnsModal = ({ excel_id,sheet_id, token, onClose }) => {
+const AddColumnsModal = ({ excel_id, sheet_id, token, onClose }) => {
   const [sheet, setSheet] = useState(null);
   const [columns, setColumns] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -20,12 +20,12 @@ const AddColumnsModal = ({ excel_id,sheet_id, token, onClose }) => {
       } catch (err) {
         console.error("Failed to fetch sheet:", err);
         alert("Unable to fetch sheet details");
-        
+      } finally {
+        setLoading(false);
       }
     };
     fetchSheetDetails();
-    setLoading(false);
-  }, [excel_id, token]);
+  }, [sheet_id, token]);
 
   // ✅ Add new empty column row
   const handleAddColumn = () =>
@@ -89,9 +89,9 @@ const AddColumnsModal = ({ excel_id,sheet_id, token, onClose }) => {
           Manage Columns — {sheet.sheet_name}
         </h3>
 
-        {/* COLUMN LIST */}
+        {/* ✅ COLUMN LIST */}
         <div className="space-y-2">
-          {sheet.columns.map((col, idx) => (
+          {columns.map((col, idx) => (
             <div key={idx} className="flex gap-2 items-center">
               <input
                 type="text"
@@ -121,7 +121,7 @@ const AddColumnsModal = ({ excel_id,sheet_id, token, onClose }) => {
           ))}
         </div>
 
-        {/* ACTION BUTTONS */}
+        {/* ✅ ACTION BUTTONS */}
         <div className="flex gap-2 mt-4">
           <button
             onClick={handleAddColumn}
