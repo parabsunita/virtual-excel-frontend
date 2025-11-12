@@ -21,18 +21,10 @@ const Dashboard = ({
       setLoading(true);
       setActiveExcel(excel);
 
-      const sheetsRes = await listSheetsByExcelAPI(excel.id, token);
-      const sheetData = await Promise.all(
-        sheetsRes.sheets.map(async (sheet) => {
-          const colsRes = await listColumnsAPI(sheet.id, token);
-          return {
-            ...sheet,
-            columns: colsRes.columns || [],
-          };
-        })
-      );
+      const sheetsRes = await listSheetsByExcelAPI(excel, token);
+     
 
-      setSheets(sheetData);
+      setSheets(sheetsRes || []);
       setLoading(false);
     } catch (err) {
       console.error(err);
