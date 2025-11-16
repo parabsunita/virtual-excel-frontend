@@ -50,7 +50,7 @@ const ExcelViewer = ({ sheets }) => {
 
     try {
       await axios.post(
-        `${API_BASE}/rows/${activeSheet.id}/${userId}`,
+        `${API_BASE}/rows/${activeSheet.id}`,
         { row_data: newRow },
         {
           headers: { Authorization: `Bearer ${token}` },
